@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'theme/dahabi_theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/data_provider.dart';
+import 'services/logger_service.dart';
 import 'l10n/app_localizations.dart';
 
 // Simple locale provider
@@ -18,8 +19,10 @@ class LocaleProvider extends ChangeNotifier {
 
 final localeProvider = LocaleProvider();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LoggerService().init();
+  LoggerService().log('>>> APP STARTING <<<');
   DataProvider().init();
   runApp(
     ListenableBuilder(

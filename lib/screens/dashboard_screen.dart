@@ -4,6 +4,7 @@ import '../components/asset_list_item.dart';
 import '../theme/dahabi_theme.dart';
 import '../services/data_provider.dart';
 import '../services/gold_engine.dart';
+import '../services/logger_service.dart';
 import '../l10n/app_localizations.dart';
 import '../components/gold_trading_terminal.dart';
 import 'gold_trading_screen.dart';
@@ -84,6 +85,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               const Spacer(),
                               IconButton(
                                 onPressed: () => DataProvider().sync(),
+                                onLongPress: () async {
+                                  final logs = await LoggerService().getLogs();
+                                  if (context.mounted) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('App Logs'),
+                                        content: SingleChildScrollView(
+                                          child: SelectableText(logs, style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
+                                        ),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                },
                                 icon: const Icon(Icons.sync, color: DahabiTheme.gold, size: 20),
                               ),
                               IconButton(

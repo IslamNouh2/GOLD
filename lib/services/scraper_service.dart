@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' show parse;
 import 'database_service.dart';
+import 'logger_service.dart';
 
 class ScraperService {
   final DatabaseService _db = DatabaseService();
@@ -28,9 +29,9 @@ class ScraperService {
     try {
       await scrapeGoldSpot(); // Global Spot Price
       await scrapeEuroDZ();   // Local DZD Rates
-      print('Scraping completed at ${DateTime.now()}');
+      LoggerService().log('Scraping completed successfully');
     } catch (e) {
-      print('Error during scraping: $e');
+      LoggerService().log('Error during scraping: $e');
     }
   }
 
@@ -40,44 +41,40 @@ class ScraperService {
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.gold-api.com/price/XAU')),
         headers: {'x-api-key': goldApiKey},
-      );
+      ).timeout(const Duration(seconds: 15));
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final spotPriceOunce = (data['price'] as num).toDouble();
-        final priceGram24k = spotPriceOunce / 31.1035;
         
         print('--- GOLD-API.COM DEBUG ---');
         print('API Raw Ounce: \$$spotPriceOunce');
-        print('Converted Gram: \$$priceGram24k');
         
         await _updateGoldRate('XAU/USD', spotPriceOunce, 0.0, rawPrice: spotPriceOunce);
         return;
       } else {
-        print('Gold-API.com Error: ${response.statusCode} - ${response.body}');
+        LoggerService().log('Gold-API.com Error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Gold-API.com Primary Error: $e');
+      LoggerService().log('Gold-API.com Primary Error: $e');
     }
 
     // Secondary: Twelve Data (Fallback)
     try {
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.twelvedata.com/price?symbol=XAU/USD&apikey=a4b6863a6655425e82ede6e651c2738d')),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['price'] != null) {
           final spotPriceOunce = double.parse(data['price']);
-          final priceGram24k = spotPriceOunce / 31.1035;
-          print('--- TWELVE DATA FALLBACK DEBUG ---');
-          print('Spot Ounce: \$$spotPriceOunce');
+          LoggerService().log('Twelve Data Fallback: Spot Ounce: \$$spotPriceOunce');
           await _updateGoldRate('XAU/USD', spotPriceOunce, 0.0, rawPrice: spotPriceOunce);
           return;
         }
       }
     } catch (e) {
-      print('Twelve Data Fallback Error: $e');
+      LoggerService().log('Twelve Data Fallback Error: $e');
     }
 
     // Last Resort: Web Scraping Fallback
@@ -87,7 +84,7 @@ class ScraperService {
   Future<void> _fallbackGoldScraper() async {
     try {
       // Scraping goldprice.org as a robust fallback
-      final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/')));
+      final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/'))).timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         // Find the spot price in the header or table
@@ -97,14 +94,13 @@ class ScraperService {
           final price = double.tryParse(priceText) ?? 0.0;
           if (price > 0) {
             final priceGram = price / 31.1035;
-            print('--- FALLBACK SCRAPER DEBUG ---');
-            print('Gold Ounce (Fallback): \$$price');
+            LoggerService().log('Fallback Scraper: Gold Ounce: \$$price');
             await _updateGoldRate('XAU/USD', price, 0.0, rawPrice: price);
           }
         }
       }
     } catch (e) {
-      print('Gold Fallback Error: $e');
+      LoggerService().log('Gold Fallback Error: $e');
     }
   }
 
@@ -134,7 +130,7 @@ class ScraperService {
 
   Future<void> scrapeEuroDZ() async {
     try {
-      final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/')));
+      final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/'))).timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         var rows = document.querySelectorAll('table tr');

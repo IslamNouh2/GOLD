@@ -2,6 +2,7 @@ import 'dart:async';
 import 'database_service.dart';
 import 'scraper_service.dart';
 import 'twelve_data_service.dart';
+import 'logger_service.dart';
 
 class DataProvider {
   static final DataProvider _instance = DataProvider._internal();
@@ -19,39 +20,53 @@ class DataProvider {
 
   bool _isInitialLoading = true;
   bool _isOffline = false;
+  bool _isSyncing = false;
   bool get isInitialLoading => _isInitialLoading;
   bool get isOffline => _isOffline;
+  bool get isSyncing => _isSyncing;
 
   void init() {
-    // Initial sync immediately
-    sync();
+    // 1. Emit cached data immediately to avoid black screen on launch
+    refreshRates();
+
+    // 2. Initial sync with a small delay to let UI settle
+    Future.delayed(const Duration(milliseconds: 500), () => sync());
     
-    // Perform a full sync (scrape + refresh) every 2 minutes
-    Timer.periodic(const Duration(minutes: 2), (timer) {
+    // 3. Periodic full sync every 5 minutes (reduced from 2 to save battery/bandwidth)
+    Timer.periodic(const Duration(minutes: 5), (timer) {
       sync();
     });
 
-    // Frequent refresh from DB to ensure UI is snappy (every 5 seconds)
+    // 4. Frequent refresh from DB (every 5 seconds)
     Timer.periodic(const Duration(seconds: 5), (timer) {
       refreshRates();
     });
   }
 
   Future<void> sync() async {
-    print('>>> TRIGGERING FULL SYNC <<<');
+    if (_isSyncing) return;
+    _isSyncing = true;
+    
+    final logger = LoggerService();
+    logger.log('>>> TRIGGERING FULL SYNC <<<');
     try {
-      await _scraper.scrapeAll();
+      // Add a 30s timeout to the entire sync process
+      await _scraper.scrapeAll().timeout(const Duration(seconds: 30));
       _lastSync = DateTime.now();
       _isInitialLoading = false;
       _isOffline = false;
+      logger.log('Sync Successful');
     } catch (e) {
+      logger.log('Sync Error: $e');
       _isOffline = true;
+    } finally {
+      _isSyncing = false;
+      await refreshRates();
     }
-    await refreshRates();
   }
 
   Future<void> refreshRates() async {
-    final rates = await _db.getLatestRates();
+    final rates = List<Map<String, dynamic>>.from(await _db.getLatestRates());
     
     // Inject latest Twelve Data price if available to keep everything in sync
     final td = TwelveDataService();
@@ -70,6 +85,16 @@ class DataProvider {
       } else {
         rates.add(tdRate);
       }
+    }
+
+    if (rates.isEmpty) {
+      // Fallback data to prevent black screen on first launch if sync is slow
+      final now = DateTime.now().toIso8601String();
+      rates.addAll([
+        {'symbol': 'XAU/USD', 'purchase_price': 2350.0, 'sale_price': 2350.0, 'change': 0.0, 'timestamp': now},
+        {'symbol': 'USD/DZD', 'purchase_price': 238.0, 'sale_price': 240.0, 'change': 0.0, 'timestamp': now},
+        {'symbol': 'EUR/DZD', 'purchase_price': 255.0, 'sale_price': 258.0, 'change': 0.0, 'timestamp': now},
+      ]);
     }
 
     if (rates.isNotEmpty) {

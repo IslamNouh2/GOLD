@@ -39,6 +39,22 @@ class DatabaseService {
         timestamp TEXT NOT NULL
       )
     ''');
+    
+    // Seed initial data to prevent empty state on first launch
+    await _seedData(db);
+  }
+
+  Future<void> _seedData(Database db) async {
+    final now = DateTime.now().toIso8601String();
+    final initialRates = [
+      {'symbol': 'XAU/USD', 'purchase_price': 2350.0, 'sale_price': 2350.0, 'change': 0.0, 'timestamp': now},
+      {'symbol': 'USD/DZD', 'purchase_price': 238.0, 'sale_price': 240.0, 'change': 0.0, 'timestamp': now},
+      {'symbol': 'EUR/DZD', 'purchase_price': 255.0, 'sale_price': 258.0, 'change': 0.0, 'timestamp': now},
+    ];
+    
+    for (var rate in initialRates) {
+      await db.insert('rates', rate);
+    }
   }
 
   Future<void> insertRate(Map<String, dynamic> rate) async {
