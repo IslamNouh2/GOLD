@@ -61,10 +61,9 @@ class TwelveDataService {
       }
     } catch (e) {
       print('TwelveDataService Error: $e');
-      rethrow;
+      // On error, we still return cached candles instead of empty
+      return _cachedCandles;
     }
-    
-    return _cachedCandles;
   }
 
   /// Silent fetch for background updates (respects same cache)

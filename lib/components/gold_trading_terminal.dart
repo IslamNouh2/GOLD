@@ -341,34 +341,39 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
   }
 
   Widget _buildErrorWidget() {
+    String displayError = _error;
+    if (_error.contains('SocketException') || _error.contains('Failed host lookup')) {
+      displayError = 'No Internet Connection. Please check your network and try again.';
+    }
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
+          const Icon(Icons.signal_wifi_off, color: Colors.redAccent, size: 40),
           const SizedBox(height: 12),
-          Text(
-            'Terminal Error',
+          const Text(
+            'Terminal Offline',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
-              _error,
+              displayError,
               textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ),
           const SizedBox(height: 16),
-          TextButton.icon(
+          ElevatedButton.icon(
             onPressed: () => _fetchData(),
             icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Retry Connection'),
-            style: TextButton.styleFrom(
+            label: const Text('Try Again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD4AF37).withOpacity(0.1),
               foregroundColor: const Color(0xFFD4AF37),
+              side: const BorderSide(color: Color(0xFFD4AF37)),
             ),
           ),
         ],
@@ -377,6 +382,7 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
   }
 
   Widget _buildFooter() {
+    final bool isOffline = _error.isNotEmpty;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -386,12 +392,12 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
         ),
         Row(
           children: [
-            const Icon(Icons.circle, size: 6, color: Colors.greenAccent),
+            Icon(Icons.circle, size: 6, color: isOffline ? Colors.grey : Colors.greenAccent),
             const SizedBox(width: 4),
             Text(
-              'DATA LIVE',
+              isOffline ? 'OFFLINE' : 'DATA LIVE',
               style: TextStyle(
-                color: Colors.greenAccent.withOpacity(0.7), 
+                color: (isOffline ? Colors.grey : Colors.greenAccent).withOpacity(0.7), 
                 fontSize: 9, 
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
