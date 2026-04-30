@@ -20,7 +20,17 @@ class TwelveDataService {
   double? get lastPrice => _lastPrice;
   double? get lastChange => _lastChange;
 
+  DateTime? _lastQuoteFetch;
+  Map<String, dynamic>? _cachedQuote;
+
   Future<Map<String, dynamic>> fetchQuote(String symbol) async {
+    // Cache for 60 seconds to prevent 429
+    if (_lastQuoteFetch != null && 
+        _cachedQuote != null &&
+        DateTime.now().difference(_lastQuoteFetch!).inSeconds < 60) {
+      return _cachedQuote!;
+    }
+
     try {
       final url = Uri.parse('$_baseUrl/quote?symbol=$symbol&apikey=$_apiKey');
       final response = await http.get(url);
@@ -29,15 +39,20 @@ class TwelveDataService {
         final data = json.decode(response.body);
         if (data['status'] == 'error') return {};
         
-        _lastChange = double.tryParse(data['percent_change'] ?? '0.0') ?? 0.0;
-        _lastPrice = double.tryParse(data['price'] ?? '0.0') ?? 0.0;
+        _lastChange = double.tryParse(data['percent_change']?.toString() ?? '0.0') ?? 0.0;
+        _lastPrice = double.tryParse(data['price']?.toString() ?? '0.0') ?? 0.0;
         
+        _cachedQuote = data;
+        _lastQuoteFetch = DateTime.now();
         return data;
+      } else if (response.statusCode == 429) {
+        print('TwelveData Quote: 429 Rate Limit');
+        return _cachedQuote ?? {};
       }
     } catch (e) {
       print('fetchQuote Error: $e');
     }
-    return {};
+    return _cachedQuote ?? {};
   }
 
   Future<List<Candle>> fetchGoldCandles({String interval = '4h', int outputSize = 100}) async {

@@ -57,6 +57,9 @@ class ScraperService {
       // 2. Primary: Gold-API.com (Free & Reliable Price)
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.gold-api.com/price/XAU')),
+        headers: {
+          'x-api-key': goldApiKey,
+        },
       ).timeout(const Duration(seconds: 15));
       
       if (response.statusCode == 200) {
