@@ -51,11 +51,17 @@ class DataProvider {
     logger.log('>>> TRIGGERING FULL SYNC <<<');
     try {
       // Add a 30s timeout to the entire sync process
-      await _scraper.scrapeAll().timeout(const Duration(seconds: 30));
-      _lastSync = DateTime.now();
-      _isInitialLoading = false;
-      _isOffline = false;
-      logger.log('Sync Successful');
+      final success = await _scraper.scrapeAll().timeout(const Duration(seconds: 30));
+      
+      if (success) {
+        _lastSync = DateTime.now();
+        _isInitialLoading = false;
+        _isOffline = false;
+        logger.log('Sync Successful');
+      } else {
+        _isOffline = true;
+        logger.log('Sync Failed: Scraper returned false');
+      }
     } catch (e) {
       logger.log('Sync Error: $e');
       _isOffline = true;

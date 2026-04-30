@@ -32,9 +32,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             builder: (context, snapshot) {
               final data = snapshot.data;
               final rates = (data?['rates'] as List?) ?? [];
+              final isOffline = data?['isOffline'] ?? false;
 
               if (rates.isEmpty) {
-                return _buildLanding(context);
+                return _buildLanding(context, isOffline);
               }
 
               return LayoutBuilder(
@@ -127,6 +128,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         height: tickerH,
                         child: _buildTicker(rates, isLargeScreen),
                       ),
+
+                      if (isOffline)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          color: DahabiTheme.red.withOpacity(0.8),
+                          child: Center(
+                            child: Text(
+                              context.l10n('offline_data'),
+                              style: DahabiTheme.labelCaps.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
 
                       // 3. MAIN CONTENT: Priorities flipped for Table visibility
                       Expanded(
@@ -364,20 +378,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLanding(BuildContext context) {
+  Widget _buildLanding(BuildContext context, bool isOffline) {
     return Container(
       width: double.infinity,
       color: DahabiTheme.background,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.stars, color: DahabiTheme.gold, size: 64),
+          Icon(
+            isOffline ? Icons.wifi_off : Icons.stars, 
+            color: isOffline ? DahabiTheme.red : DahabiTheme.gold, 
+            size: 64
+          ),
           const SizedBox(height: 24),
           Text(context.l10n('app_title'), style: DahabiTheme.arabicTitle.copyWith(fontSize: 32)),
           const SizedBox(height: 16),
-          const CircularProgressIndicator(color: DahabiTheme.gold),
-          const SizedBox(height: 24),
-          Text('جاري جلب البيانات...', style: DahabiTheme.labelCaps.copyWith(color: DahabiTheme.gold)),
+          if (isOffline) ...[
+            Text(context.l10n('no_connection'), 
+              style: DahabiTheme.labelCaps.copyWith(color: DahabiTheme.red, fontSize: 18)),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(context.l10n('check_internet'), 
+                textAlign: TextAlign.center,
+                style: DahabiTheme.labelCaps.copyWith(color: DahabiTheme.muted, fontSize: 14)),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => DataProvider().sync(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DahabiTheme.gold,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              icon: const Icon(Icons.refresh),
+              label: Text(context.l10n('retry')),
+            ),
+          ] else ...[
+            const CircularProgressIndicator(color: DahabiTheme.gold),
+            const SizedBox(height: 24),
+            Text('جاري جلب البيانات...', style: DahabiTheme.labelCaps.copyWith(color: DahabiTheme.gold)),
+          ],
         ],
       ),
     );

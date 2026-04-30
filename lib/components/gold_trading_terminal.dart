@@ -4,6 +4,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:intl/intl.dart';
 import '../services/twelve_data_service.dart';
 import '../models/candle_model.dart';
+import '../l10n/app_localizations.dart';
 
 class GoldTradingTerminal extends StatefulWidget {
   final bool showInfo;
@@ -346,26 +347,21 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
   }
 
   Widget _buildErrorWidget() {
-    String displayError = _error;
-    if (_error.contains('SocketException') || _error.contains('Failed host lookup')) {
-      displayError = 'No Internet Connection. Please check your network and try again.';
-    }
-
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.signal_wifi_off, color: Colors.redAccent, size: 40),
           const SizedBox(height: 12),
-          const Text(
-            'Terminal Offline',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          Text(
+            context.l10n('no_connection'),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
-              displayError,
+              context.l10n('check_internet'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
@@ -374,7 +370,7 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
           ElevatedButton.icon(
             onPressed: () => _fetchData(),
             icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Try Again'),
+            label: Text(context.l10n('retry')),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD4AF37).withOpacity(0.1),
               foregroundColor: const Color(0xFFD4AF37),

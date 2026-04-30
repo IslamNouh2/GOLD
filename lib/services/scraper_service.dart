@@ -24,17 +24,27 @@ class ScraperService {
   // The sync interval is now managed by DataProvider.init()
   // to ensure UI timestamps and data remain perfectly synchronized.
 
-  Future<void> scrapeAll() async {
+  Future<bool> scrapeAll() async {
+    bool goldSuccess = false;
+    bool euroSuccess = false;
     try {
-      await scrapeGoldSpot(); // Global Spot Price
-      await scrapeEuroDZ();   // Local DZD Rates
-      LoggerService().log('Scraping completed successfully');
+      goldSuccess = await scrapeGoldSpot(); // Global Spot Price
+      euroSuccess = await scrapeEuroDZ();   // Local DZD Rates
+      
+      final success = goldSuccess || euroSuccess;
+      if (success) {
+        LoggerService().log('Scraping completed successfully');
+      } else {
+        LoggerService().log('Scraping failed: No data retrieved');
+      }
+      return success;
     } catch (e) {
       LoggerService().log('Error during scraping: $e');
+      return false;
     }
   }
 
-  Future<void> scrapeGoldSpot() async {
+  Future<bool> scrapeGoldSpot() async {
     try {
       // 1. Fetch Global Quote from TwelveData (for the real percentage change)
       double marketChange = 0.0;
@@ -43,15 +53,10 @@ class ScraperService {
         final quote = await twelveData.fetchQuote('XAU/USD');
         marketChange = double.tryParse(quote['percent_change']?.toString() ?? '0.0') ?? 0.0;
       } catch (_) {}
-
+ 
       // 2. Primary: Gold-API.com (Free & Reliable Price)
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.gold-api.com/price/XAU')),
-        // headers: {
-        //   'x-api-key': goldApiKey,
-        //   'Cache-Control': 'no-cache',
-        //   'Pragma': 'no-cache',
-        // },
       ).timeout(const Duration(seconds: 15));
       
       if (response.statusCode == 200) {
@@ -62,39 +67,37 @@ class ScraperService {
         print('API Raw Ounce: \$$spotPriceOunce | Market Change: $marketChange%');
         
         await _updateGoldRate('XAU/USD', spotPriceOunce, marketChange, rawPrice: spotPriceOunce);
-        return;
+        return true;
       } else {
         LoggerService().log('Gold-API.com Error: ${response.statusCode}');
       }
     } catch (e) {
       LoggerService().log('Gold-API.com Primary Error: $e');
     }
-
+ 
     // Secondary: Web Scraping Fallback (ONLY if gold-api.com fails)
-    await _fallbackGoldScraper();
+    return await _fallbackGoldScraper();
   }
 
-  Future<void> _fallbackGoldScraper() async {
+  Future<bool> _fallbackGoldScraper() async {
     try {
-      // Scraping goldprice.org as a robust fallback
       final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/'))).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         var document = parse(response.body);
-        // Find the spot price in the header or table
         var priceElement = document.querySelector('#gold_price_usd');
         if (priceElement != null) {
           final priceText = priceElement.text.replaceAll(',', '').trim();
           final price = double.tryParse(priceText) ?? 0.0;
           if (price > 0) {
-            final priceGram = price / 31.1035;
-            LoggerService().log('Fallback Scraper: Gold Ounce: \$$price');
             await _updateGoldRate('XAU/USD', price, 0.0, rawPrice: price);
+            return true;
           }
         }
       }
     } catch (e) {
       LoggerService().log('Gold Fallback Error: $e');
     }
+    return false;
   }
 
   Future<void> _updateGoldRate(String symbol, double price, double placeholderChange, {double? rawPrice}) async {
@@ -140,7 +143,7 @@ class ScraperService {
     });
   }
 
-  Future<void> scrapeEuroDZ() async {
+  Future<bool> scrapeEuroDZ() async {
     try {
       final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/'))).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
@@ -149,26 +152,22 @@ class ScraperService {
         
         double? usdRate;
         double? eurRate;
-        
         bool foundAny = false;
+        
         for (var row in rows) {
           var cells = row.querySelectorAll('td');
           if (cells.length >= 3) {
             final name = cells[0].text.toUpperCase();
-            
             if (name.contains('(EUR)') || name.contains('(USD)')) {
               final isEur = name.contains('(EUR)');
               final symbol = isEur ? 'EUR/DZD' : 'USD/DZD';
-              
               final valStr = cells[1].text.replaceAll(RegExp(r'[^0-9.]'), '').trim();
               final achat = double.tryParse(valStr) ?? 0.0;
-              
               final valStr2 = cells[2].text.replaceAll(RegExp(r'[^0-9.]'), '').trim();
               final vente = double.tryParse(valStr2) ?? 0.0;
               
               if (achat > 0) {
                 if (isEur) eurRate = achat; else usdRate = achat;
-                
                 await _db.insertRate({
                   'symbol': symbol,
                   'purchase_price': achat,
@@ -181,8 +180,6 @@ class ScraperService {
             }
           }
         }
-
-        // Calculate cross-rate if both found
         if (usdRate != null && eurRate != null && eurRate > 0) {
           final usdEur = usdRate / eurRate;
           await _db.insertRate({
@@ -193,12 +190,12 @@ class ScraperService {
             'timestamp': DateTime.now().toIso8601String(),
           });
         }
-
-        if (!foundAny) print('EuroDZ: No rates found. Site might have changed.');
+        return foundAny;
       }
     } catch (e) {
       print('EuroDZ Scraping Error: $e');
     }
+    return false;
   }
 }
 
