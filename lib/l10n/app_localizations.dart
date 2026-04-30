@@ -11,7 +11,7 @@ class AppLocalizations {
 
   static const Map<String, Map<String, String>> _localizedValues = {
     'en': {
-      'app_title': 'Dahabi Premium',
+      'app_title': 'Dahabi',
       'welcome_msg': 'Real-time monitoring of gold and currency prices in the Algerian parallel market.',
       'gold_spot': 'GOLD SPOT',
       'unit_oz': 'USD/OZ',
@@ -32,6 +32,7 @@ class AppLocalizations {
       'today': 'today',
       'gold_spot_label': 'Global Gold Price',
       'gram_24k_label': 'Gram Price · 24K',
+      'gram_18k_label': 'Gram Price · 18K',
       'per_ounce': 'per ounce',
       'dzd_currency': 'Algerian Dinar',
       'col_type': 'Type',
@@ -40,7 +41,7 @@ class AppLocalizations {
       'one_gram': '1 gram',
     },
     'ar': {
-      'app_title': 'ذهبي بريميوم',
+      'app_title': 'ذهبي',
       'welcome_msg': 'مراقبة لحظية لأسعار الذهب والعملات في السوق الموازي الجزائري',
       'gold_spot': 'سعر الذهب العالمي',
       'unit_oz': 'دولار/أونصة',
@@ -61,6 +62,7 @@ class AppLocalizations {
       'today': 'اليوم',
       'gold_spot_label': 'سعر الذهب العالمي',
       'gram_24k_label': 'سعر الجرام · 24K',
+      'gram_18k_label': 'سعر الجرام · 18K',
       'per_ounce': 'للأونصة',
       'dzd_currency': 'دينار جزائري',
       'col_type': 'النوع',
@@ -69,7 +71,7 @@ class AppLocalizations {
       'one_gram': '1 جرام',
     },
     'fr': {
-      'app_title': 'Dahabi Premium',
+      'app_title': 'Dahabi',
       'welcome_msg': 'Suivi en temps réel des prix de l\'or et des devises sur le marché parallèle algérien.',
       'gold_spot': 'SPOT OR',
       'unit_oz': 'USD/OZ',
@@ -90,6 +92,7 @@ class AppLocalizations {
       'today': 'aujourd\'hui',
       'gold_spot_label': 'Prix de l\'or mondial',
       'gram_24k_label': 'Prix du gramme · 24K',
+      'gram_18k_label': 'Prix du gramme · 18K',
       'per_ounce': 'par once',
       'dzd_currency': 'Dinar Algérien',
       'col_type': 'Type',

@@ -20,7 +20,27 @@ class TwelveDataService {
   double? get lastPrice => _lastPrice;
   double? get lastChange => _lastChange;
 
-  Future<List<Candle>> fetchGoldCandles({String interval = '5min', int outputSize = 100}) async {
+  Future<Map<String, dynamic>> fetchQuote(String symbol) async {
+    try {
+      final url = Uri.parse('$_baseUrl/quote?symbol=$symbol&apikey=$_apiKey');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'error') return {};
+        
+        _lastChange = double.tryParse(data['percent_change'] ?? '0.0') ?? 0.0;
+        _lastPrice = double.tryParse(data['price'] ?? '0.0') ?? 0.0;
+        
+        return data;
+      }
+    } catch (e) {
+      print('fetchQuote Error: $e');
+    }
+    return {};
+  }
+
+  Future<List<Candle>> fetchGoldCandles({String interval = '4h', int outputSize = 100}) async {
     // Optimization: Don't fetch if last fetch was less than 55 seconds ago
     if (_lastFetchTime != null && 
         DateTime.now().difference(_lastFetchTime!).inSeconds < 55 && 
@@ -47,8 +67,6 @@ class TwelveDataService {
           
           if (_cachedCandles.isNotEmpty) {
             _lastPrice = _cachedCandles.last.close;
-            final firstPrice = _cachedCandles.first.close;
-            _lastChange = ((_lastPrice! - firstPrice) / firstPrice) * 100;
           }
 
           _lastFetchTime = DateTime.now();
@@ -61,7 +79,6 @@ class TwelveDataService {
       }
     } catch (e) {
       print('TwelveDataService Error: $e');
-      // On error, we still return cached candles instead of empty
       return _cachedCandles;
     }
     

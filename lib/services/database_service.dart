@@ -9,8 +9,8 @@ class DatabaseService {
 
   static Database? _database;
   
-  // In-memory mock for Web to prevent crashes
-  final Map<String, Map<String, dynamic>> _webMockRates = {};
+  // In-memory mock for Web to store history
+  final Map<String, List<Map<String, dynamic>>> _webMockRates = {};
 
   Future<Database?> get database async {
     if (kIsWeb) return null;
@@ -59,7 +59,10 @@ class DatabaseService {
 
   Future<void> insertRate(Map<String, dynamic> rate) async {
     if (kIsWeb) {
-      _webMockRates[rate['symbol']] = rate;
+      if (!_webMockRates.containsKey(rate['symbol'])) {
+        _webMockRates[rate['symbol']] = [];
+      }
+      _webMockRates[rate['symbol']]!.add(rate);
       return;
     }
     final db = await database;
@@ -67,27 +70,42 @@ class DatabaseService {
       await db.insert(
         'rates',
         rate,
-        conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
   }
 
   Future<List<Map<String, dynamic>>> getLatestRates() async {
     if (kIsWeb) {
-      return _webMockRates.values.toList();
+      return _webMockRates.values.map((list) => list.last).toList();
     }
     final db = await database;
     if (db == null) return [];
     
-    // Get the most recent entry for each symbol
     return await db.rawQuery('''
       SELECT * FROM rates 
       WHERE id IN (SELECT MAX(id) FROM rates GROUP BY symbol)
     ''');
   }
 
+  Future<List<Map<String, dynamic>>> getRatesBySymbol(String symbol) async {
+    if (kIsWeb) {
+      return _webMockRates[symbol] ?? [];
+    }
+    final db = await database;
+    if (db == null) return [];
+    return await db.query(
+      'rates',
+      where: 'symbol = ?',
+      whereArgs: [symbol],
+      orderBy: 'timestamp ASC',
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getRateHistory(String symbol, int limit) async {
-    if (kIsWeb) return [];
+    if (kIsWeb) {
+      final list = _webMockRates[symbol] ?? [];
+      return list.reversed.take(limit).toList();
+    }
     final db = await database;
     if (db == null) return [];
     

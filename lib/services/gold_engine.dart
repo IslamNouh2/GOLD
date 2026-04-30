@@ -18,9 +18,9 @@ class GoldPricingEngine {
 
     // Purities mapping based on user requirements
     final purities = {
-      '24K': 1.0,
-      '21K': 0.875,
       '18K': 0.75,
+      '21K': 0.875,
+      '24K': 1.0,
     };
 
     final Map<String, dynamic> results = {};

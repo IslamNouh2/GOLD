@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' show parse;
 import 'database_service.dart';
 import 'logger_service.dart';
+import 'twelve_data_service.dart';
 
 class ScraperService {
   final DatabaseService _db = DatabaseService();
@@ -13,11 +14,9 @@ class ScraperService {
   // Proxy for Web to bypass CORS
   String _proxyUrl(String url) {
     if (kIsWeb) {
-      // Using corsproxy.io with cache busting
+      // Use Codetabs proxy with a proxy-level cache buster
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final separator = url.contains('?') ? '&' : '?';
-      final cleanUrl = url.contains('gold-api.com') ? url : '$url${separator}cb=$ts';
-      return 'https://corsproxy.io/?${Uri.encodeComponent(cleanUrl)}';
+      return 'https://api.codetabs.com/v1/proxy?quest=${Uri.encodeComponent(url)}&cb=$ts';
     }
     return url;
   }
@@ -37,10 +36,22 @@ class ScraperService {
 
   Future<void> scrapeGoldSpot() async {
     try {
-      // Primary: Gold-API.com (Free & Reliable)
+      // 1. Fetch Global Quote from TwelveData (for the real percentage change)
+      double marketChange = 0.0;
+      try {
+        final twelveData = TwelveDataService();
+        final quote = await twelveData.fetchQuote('XAU/USD');
+        marketChange = double.tryParse(quote['percent_change']?.toString() ?? '0.0') ?? 0.0;
+      } catch (_) {}
+
+      // 2. Primary: Gold-API.com (Free & Reliable Price)
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.gold-api.com/price/XAU')),
-        headers: {'x-api-key': goldApiKey},
+        // headers: {
+        //   'x-api-key': goldApiKey,
+        //   'Cache-Control': 'no-cache',
+        //   'Pragma': 'no-cache',
+        // },
       ).timeout(const Duration(seconds: 15));
       
       if (response.statusCode == 200) {
@@ -48,9 +59,9 @@ class ScraperService {
         final spotPriceOunce = (data['price'] as num).toDouble();
         
         print('--- GOLD-API.COM DEBUG ---');
-        print('API Raw Ounce: \$$spotPriceOunce');
+        print('API Raw Ounce: \$$spotPriceOunce | Market Change: $marketChange%');
         
-        await _updateGoldRate('XAU/USD', spotPriceOunce, 0.0, rawPrice: spotPriceOunce);
+        await _updateGoldRate('XAU/USD', spotPriceOunce, marketChange, rawPrice: spotPriceOunce);
         return;
       } else {
         LoggerService().log('Gold-API.com Error: ${response.statusCode}');
@@ -59,32 +70,14 @@ class ScraperService {
       LoggerService().log('Gold-API.com Primary Error: $e');
     }
 
-    // Secondary: Twelve Data (Fallback)
-    try {
-      final response = await http.get(
-        Uri.parse(_proxyUrl('https://api.twelvedata.com/price?symbol=XAU/USD&apikey=a4b6863a6655425e82ede6e651c2738d')),
-      ).timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['price'] != null) {
-          final spotPriceOunce = double.parse(data['price']);
-          LoggerService().log('Twelve Data Fallback: Spot Ounce: \$$spotPriceOunce');
-          await _updateGoldRate('XAU/USD', spotPriceOunce, 0.0, rawPrice: spotPriceOunce);
-          return;
-        }
-      }
-    } catch (e) {
-      LoggerService().log('Twelve Data Fallback Error: $e');
-    }
-
-    // Last Resort: Web Scraping Fallback
+    // Secondary: Web Scraping Fallback (ONLY if gold-api.com fails)
     await _fallbackGoldScraper();
   }
 
   Future<void> _fallbackGoldScraper() async {
     try {
       // Scraping goldprice.org as a robust fallback
-      final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/'))).timeout(const Duration(seconds: 20));
+      final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/'))).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         // Find the spot price in the header or table
@@ -105,18 +98,37 @@ class ScraperService {
   }
 
   Future<void> _updateGoldRate(String symbol, double price, double placeholderChange, {double? rawPrice}) async {
-    final latestRates = await _db.getLatestRates();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
+    
     double change = 0.0;
     
-    try {
-      final prev = latestRates.firstWhere((e) => e['symbol'] == symbol);
-      final prevPrice = prev['sale_price'] as double;
-      if (prevPrice > 0) {
-        change = ((price - prevPrice) / prevPrice) * 100;
-        print('Calculated Change: ${change.toStringAsFixed(4)}%');
+    // If the API provided a real market change, use it as priority!
+    if (placeholderChange != 0.0) {
+      change = placeholderChange;
+    } else {
+      // Fallback: Local calculation if API change is missing
+      try {
+        final allRates = await _db.getRatesBySymbol(symbol);
+        final todayRates = allRates.where((e) => (e['timestamp'] as String).compareTo(todayStart) >= 0).toList();
+        
+        if (todayRates.isNotEmpty) {
+          todayRates.sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+          final openPrice = todayRates.first['sale_price'] as double;
+          if (openPrice > 0) {
+            change = ((price - openPrice) / openPrice) * 100;
+          print('--- CHANGE DEBUG ---');
+          print('Symbol: $symbol | Current: $price | Open: $openPrice | Change: ${change.toStringAsFixed(4)}%');
+          }
+        } else if (allRates.isNotEmpty) {
+          final prevPrice = allRates.last['sale_price'] as double;
+          if (prevPrice > 0) {
+            change = ((price - prevPrice) / prevPrice) * 100;
+          }
+        }
+      } catch (e) {
+        print('Change calculation error: $e');
       }
-    } catch (_) {
-      // No previous rate found
     }
 
     await _db.insertRate({
@@ -124,13 +136,13 @@ class ScraperService {
       'purchase_price': rawPrice ?? price,
       'sale_price': price,
       'change': change,
-      'timestamp': DateTime.now().toIso8601String(),
+      'timestamp': now.toIso8601String(),
     });
   }
 
   Future<void> scrapeEuroDZ() async {
     try {
-      final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/'))).timeout(const Duration(seconds: 20));
+      final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/'))).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         var rows = document.querySelectorAll('table tr');

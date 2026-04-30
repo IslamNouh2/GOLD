@@ -35,13 +35,15 @@ class _AssetListItemState extends State<AssetListItem> {
     final baseColor = widget.isEven ? Colors.white.withOpacity(0.01) : Colors.transparent;
     final color = _isFocused ? DahabiTheme.gold.withOpacity(0.1) : baseColor;
 
+    final isLarge = MediaQuery.of(context).size.width > 900;
+
     return Focus(
       onFocusChange: (hasFocus) => setState(() => _isFocused = hasFocus),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: EdgeInsets.symmetric(horizontal: isLarge ? 32 : 16, vertical: isLarge ? 20 : 14),
           decoration: BoxDecoration(
             color: color,
             border: Border(
@@ -56,21 +58,21 @@ class _AssetListItemState extends State<AssetListItem> {
               // 1. Asset Name (Karat + Weight)
               Expanded(
                 flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
                     Text(
                       widget.assetName,
                       style: DahabiTheme.dataMono.copyWith(
-                        fontSize: 24, // Increased from 15
+                        fontSize: isLarge ? 32 : 18, 
                         fontWeight: FontWeight.bold,
                         color: DahabiTheme.text,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       widget.weight,
                       style: DahabiTheme.labelCaps.copyWith(
-                        fontSize: 14, // Increased from 10
+                        fontSize: isLarge ? 18 : 10,
                         color: DahabiTheme.muted,
                       ),
                     ),
@@ -82,11 +84,13 @@ class _AssetListItemState extends State<AssetListItem> {
                 child: Text(
                   _formatPrice(widget.buyPrice),
                   style: DahabiTheme.dataMono.copyWith(
-                    fontSize: 24, // Increased from 14
+                    fontSize: isLarge ? 32 : 18,
                     fontWeight: FontWeight.bold,
                     color: DahabiTheme.gold,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
               // 3. Sell Price
@@ -94,35 +98,38 @@ class _AssetListItemState extends State<AssetListItem> {
                 child: Text(
                   _formatPrice(widget.sellPrice),
                   style: DahabiTheme.dataMono.copyWith(
-                    fontSize: 24, // Increased from 14
+                    fontSize: isLarge ? 32 : 18,
                     fontWeight: FontWeight.bold,
                     color: const Color(0xFFA89060),
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
-              // 4. Change Badge
-              SizedBox(
-                width: 100, // Increased width
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: changeColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '$changeSign${widget.change.toStringAsFixed(2)}%',
-                      style: DahabiTheme.dataMono.copyWith(
-                        color: changeColor,
-                        fontSize: 14, // Increased from 10
-                        fontWeight: FontWeight.bold,
+              // 4. Change Badge (Only on Large Screens)
+              if (isLarge)
+                SizedBox(
+                  width: 140,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: changeColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$changeSign${widget.change.toStringAsFixed(2)}%',
+                        style: DahabiTheme.dataMono.copyWith(
+                          color: changeColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

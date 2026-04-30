@@ -18,8 +18,8 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
   List<Candle> _candles = [];
   bool _isLoading = true;
   String _error = '';
-  String _selectedInterval = '5min';
-  bool _isCandleView = true;
+  String _selectedInterval = '4h';
+  bool _isCandleView = false;
   Timer? _refreshTimer;
   
   late TrackballBehavior _trackballBehavior;
@@ -30,6 +30,7 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
     {'label': '5m', 'value': '5min'},
     {'label': '15m', 'value': '15min'},
     {'label': '1h', 'value': '1h'},
+    {'label': '4h', 'value': '4h'},
     {'label': '1D', 'value': '1day'},
   ];
 
@@ -78,6 +79,9 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
     }
 
     try {
+      // Fetch the real-time quote for the daily change percentage
+      await _api.fetchQuote('XAU/USD');
+      
       final candles = await _api.fetchGoldCandles(
         interval: _selectedInterval,
         outputSize: 150,
@@ -111,10 +115,11 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 12),
-          _buildTimeframeSelector(),
-          const SizedBox(height: 16),
+          if (widget.showInfo) ...[
+            _buildHeader(),
+            const SizedBox(height: 12),
+          ],
+          // Timeframe selector removed as requested
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
@@ -135,8 +140,8 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
     
     if (_candles.isNotEmpty) {
       currentPrice = _candles.last.close;
-      final firstPrice = _candles.first.close;
-      change = ((currentPrice - firstPrice) / firstPrice) * 100;
+      // Use the official market change from TwelveDataService
+      change = _api.lastChange ?? 0.0;
     }
 
     final isPositive = change >= 0;
@@ -273,7 +278,7 @@ class _GoldTradingTerminalState extends State<GoldTradingTerminal> {
       primaryXAxis: DateTimeAxis(
         majorGridLines: const MajorGridLines(width: 0.1, color: Colors.white24),
         axisLine: const AxisLine(width: 0),
-        dateFormat: _selectedInterval == '1day' ? DateFormat('MM/dd') : DateFormat.Hm(),
+        dateFormat: (_selectedInterval == '1day' || _selectedInterval == '4h') ? DateFormat('MM/dd') : DateFormat.Hm(),
         labelStyle: const TextStyle(color: Colors.white54, fontSize: 10),
       ),
       primaryYAxis: NumericAxis(

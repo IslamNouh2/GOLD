@@ -68,33 +68,14 @@ class DataProvider {
   Future<void> refreshRates() async {
     final rates = List<Map<String, dynamic>>.from(await _db.getLatestRates());
     
-    // Inject latest Twelve Data price if available to keep everything in sync
-    final td = TwelveDataService();
-    if (td.lastPrice != null) {
-      final xauIndex = rates.indexWhere((e) => e['symbol'] == 'XAU/USD');
-      final tdRate = {
-        'symbol': 'XAU/USD',
-        'purchase_price': td.lastPrice!, 
-        'sale_price': td.lastPrice!,      // Keep as Ounce ($4600+)
-        'change': td.lastChange ?? 0.0,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-
-      if (xauIndex != -1) {
-        rates[xauIndex] = tdRate;
-      } else {
-        rates.add(tdRate);
-      }
-    }
-
+    // Twelve Data is now ONLY used for the chart, not for dashboard rates.
+    
     if (rates.isEmpty) {
-      // Fallback data to prevent black screen on first launch if sync is slow
-      final now = DateTime.now().toIso8601String();
-      rates.addAll([
-        {'symbol': 'XAU/USD', 'purchase_price': 2350.0, 'sale_price': 2350.0, 'change': 0.0, 'timestamp': now},
-        {'symbol': 'USD/DZD', 'purchase_price': 238.0, 'sale_price': 240.0, 'change': 0.0, 'timestamp': now},
-        {'symbol': 'EUR/DZD', 'purchase_price': 255.0, 'sale_price': 258.0, 'change': 0.0, 'timestamp': now},
-      ]);
+      // We no longer provide hardcoded fallback data.
+      // Returning empty will trigger the Landing Screen (Loading).
+      _isInitialLoading = true;
+    } else {
+      _isInitialLoading = false;
     }
 
     if (rates.isNotEmpty) {
