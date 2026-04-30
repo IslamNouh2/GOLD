@@ -29,11 +29,13 @@ class DataProvider {
     // 1. Emit cached data immediately to avoid black screen on launch
     refreshRates();
 
-    // 2. Initial sync with a small delay to let UI settle
-    Future.delayed(const Duration(milliseconds: 500), () => sync());
+    // 2. Initial sync with a small delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!_isSyncing) sync();
+    });
     
-    // 3. Periodic full sync every 5 minutes (reduced from 2 to save battery/bandwidth)
-    Timer.periodic(const Duration(minutes: 5), (timer) {
+    // 3. Periodic full sync every 15 minutes (increased from 5 to avoid 429)
+    Timer.periodic(const Duration(minutes: 15), (timer) {
       sync();
     });
 

@@ -44,7 +44,16 @@ class ScraperService {
     }
   }
 
+  DateTime? _lastGoldFetch;
+  DateTime? _lastEuroFetch;
+
   Future<bool> scrapeGoldSpot() async {
+    // Cache for 2 minutes to prevent 429 on mobile
+    if (_lastGoldFetch != null && 
+        DateTime.now().difference(_lastGoldFetch!).inMinutes < 2) {
+      return true; 
+    }
+
     try {
       // 1. Fetch Global Quote from TwelveData (for the real percentage change)
       double marketChange = 0.0;
@@ -54,11 +63,16 @@ class ScraperService {
         marketChange = double.tryParse(quote['percent_change']?.toString() ?? '0.0') ?? 0.0;
       } catch (_) {}
  
+      // Small delay to avoid triggering rate limits on rapid sequence calls
+      await Future.delayed(const Duration(milliseconds: 500));
+
       // 2. Primary: Gold-API.com (Free & Reliable Price)
       final response = await http.get(
         Uri.parse(_proxyUrl('https://api.gold-api.com/price/XAU')),
         headers: {
           'x-api-key': goldApiKey,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
         },
       ).timeout(const Duration(seconds: 15));
       
@@ -66,11 +80,11 @@ class ScraperService {
         final data = jsonDecode(response.body);
         final spotPriceOunce = (data['price'] as num).toDouble();
         
-        print('--- GOLD-API.COM DEBUG ---');
-        print('API Raw Ounce: \$$spotPriceOunce | Market Change: $marketChange%');
-        
         await _updateGoldRate('XAU/USD', spotPriceOunce, marketChange, rawPrice: spotPriceOunce);
+        _lastGoldFetch = DateTime.now();
         return true;
+      } else if (response.statusCode == 429) {
+        LoggerService().log('Gold-API.com: 429 Rate Limit. Trying fallback...');
       } else {
         LoggerService().log('Gold-API.com Error: ${response.statusCode}');
       }
@@ -79,12 +93,19 @@ class ScraperService {
     }
  
     // Secondary: Web Scraping Fallback (ONLY if gold-api.com fails)
-    return await _fallbackGoldScraper();
+    final success = await _fallbackGoldScraper();
+    if (success) _lastGoldFetch = DateTime.now();
+    return success;
   }
 
   Future<bool> _fallbackGoldScraper() async {
     try {
-      final response = await http.get(Uri.parse(_proxyUrl('https://goldprice.org/'))).timeout(const Duration(seconds: 30));
+      final response = await http.get(
+        Uri.parse(_proxyUrl('https://goldprice.org/')),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      ).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         var priceElement = document.querySelector('#gold_price_usd');
@@ -123,8 +144,6 @@ class ScraperService {
           final openPrice = todayRates.first['sale_price'] as double;
           if (openPrice > 0) {
             change = ((price - openPrice) / openPrice) * 100;
-          print('--- CHANGE DEBUG ---');
-          print('Symbol: $symbol | Current: $price | Open: $openPrice | Change: ${change.toStringAsFixed(4)}%');
           }
         } else if (allRates.isNotEmpty) {
           final prevPrice = allRates.last['sale_price'] as double;
@@ -147,8 +166,18 @@ class ScraperService {
   }
 
   Future<bool> scrapeEuroDZ() async {
+    // Cache for 10 minutes to prevent spamming
+    if (_lastEuroFetch != null && 
+        DateTime.now().difference(_lastEuroFetch!).inMinutes < 10) {
+      return true;
+    }
     try {
-      final response = await http.get(Uri.parse(_proxyUrl('https://eurodz.com/'))).timeout(const Duration(seconds: 30));
+      final response = await http.get(
+        Uri.parse(_proxyUrl('https://eurodz.com/')),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      ).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         var document = parse(response.body);
         var rows = document.querySelectorAll('table tr');
